@@ -1,11 +1,15 @@
 /*
- * To compile this C program, placing the executable file in 'global', type:
+ * @author     Stefano Ribes
  *
- *      gcc -o global global_alignment.c
+ * @brief      Local alignment.
  *
- * To run the program, type:
+ * @details    To compile this C program, type:
  *
- *      ./global
+ *             gcc -O3 -std=c99 local_alignment.c -o local_alignment.exe
+ *
+ *             To run the program, type:
+ *
+ *             ./local_alignment.exe
  */
 #include <stdio.h>
 
@@ -20,7 +24,7 @@
 #define LEFT 2
 #define DIAG 3
 
-int main() {
+int main(int argc, char** argv) {
   int i, j;
   int m, n;
   int alignment_length, score;
@@ -37,10 +41,10 @@ int main() {
   m = 0;
   n = 0;
   while (X[m] != 0) {
-    m++;
+    ++m;
   }
   while (Y[n] != 0) {
-    n++;
+    ++n;
   }
   /*
    * Initialise matrices

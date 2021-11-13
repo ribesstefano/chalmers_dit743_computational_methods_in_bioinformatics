@@ -1,11 +1,15 @@
 /*
- * To compile this C program, placing the executable file in 'global', type:
+ * @author     Stefano Ribes
  *
- *      gcc -o global global_alignment.c
+ * @brief      Global alignment with levenshtein function.
  *
- * To run the program, type:
+ * @details    To compile this C program, type:
  *
- *      ./global
+ *             gcc -O3 -std=c99 levenshtein.c -o levenshtein.exe
+ *
+ *             To run the program, type:
+ *
+ *             ./levenshtein.exe
  */
 #include <stdio.h>
 
@@ -20,6 +24,18 @@
 #define LEFT 2
 #define DIAG 3
 
+/**
+ * @brief      Calculate Levenshtein distance between two sequences.
+ *
+ * @param[in]  length_a  The length of sequence a
+ * @param[in]  length_b  The length of sequence b
+ * @param[in]  start_a   The start index of a
+ * @param[in]  start_b   The start index of b
+ * @param      a         The a sequence
+ * @param      b         The b sequence
+ *
+ * @return     The Levenshtein distance
+ */
 int levenshtein(const int length_a, const int length_b, const int start_a,
     const int start_b, char* const a, char* const b) {
   // NOTE: Increasing the start index effectively translates to taking the tail
@@ -189,8 +205,10 @@ int main() {
     printf("%c", alignY[i]);
   }
   printf("\n");
-  printf("[INFO] Percent identity: %.2f%\n", (float)match_cnt / (float)alignment_length * 100.0);
-  printf("[INFO] Hamming distance: %d\n", alignment_length - match_cnt);
-  printf("[INFO] Levenshtein dist: %d\n", levenshtein(alignment_length, alignment_length, 0, 0, alignX, alignY));
+  const float perc_identity = (float)match_cnt / (float)alignment_length * 100.;
+  const int lev_dist = levenshtein(alignment_length, alignment_length, 0, 0,
+                                   alignX, alignY);
+  printf("[INFO] Percent identity: %.2f%\n", perc_identity);
+  printf("[INFO] Levenshtein dist: %d\n", lev_dist);
   return 0;
 }
