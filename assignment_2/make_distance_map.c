@@ -70,18 +70,16 @@ Atom get_ca_from_residue(const Residue residue) {
     }
   }
   // Should never get here.
-  (void) fprintf(stderr, "ERROR. Unable to find CA atom in given residue. Exiting.\n");
+  (void) fprintf(stderr, "ERROR. Unable to find CA atom in given residue.\n");
+  (void) fprintf(stderr, "ERROR. List of atoms in the residue follows:\n");
   for (int i = 1; i <= residue.numAtoms; ++i) {
-    print_pdb_atom (
-      residue.atom[i].serial,
-      residue.atom[i].atomName,
-      residue.atom[i].altLoc,
-      residue.resName,
-      residue.chainID,
-      residue.resSeq,
-      residue.iCode,
-      residue.atom[i].centre);
+    (void) fprintf(stderr, "ATOM  %5d %s%s%s %s%4d%s   %8.3f%8.3f%8.3f\n",
+      residue.atom[i].serial, residue.atom[i].atomName, residue.atom[i].altLoc,
+      residue.resName, residue.chainID, residue.resSeq, residue.iCode,
+      residue.atom[i].centre.x, residue.atom[i].centre.y,
+      residue.atom[i].centre.z);
   }
+  (void) fprintf(stderr, "ERROR. Exiting.\n");
   exit(2);
 }
 

@@ -75,16 +75,16 @@ int main(argc, argv)
 			 * Print the string values of the fields.
 			 */
 
-			printf("serial= \"%s\"\n", s_serial);
-			printf("name=   \"%s\"\n", s_name);
-			printf("altLoc= \"%s\"\n", s_altLoc);
-			printf("resName=\"%s\"\n", s_resName);
-			printf("chainID=\"%s\"\n", s_chainID);
-			printf("resSeq= \"%s\"\n", s_resSeq);
-			printf("iCode=  \"%s\"\n", s_iCode);
-			printf("x=      \"%s\"\n", s_x);
-			printf("y=      \"%s\"\n", s_y);
-			printf("z=      \"%s\"\n", s_z);
+			// printf("serial= \"%s\"\n", s_serial);
+			// printf("name=   \"%s\"\n", s_name);
+			// printf("altLoc= \"%s\"\n", s_altLoc);
+			// printf("resName=\"%s\"\n", s_resName);
+			// printf("chainID=\"%s\"\n", s_chainID);
+			// printf("resSeq= \"%s\"\n", s_resSeq);
+			// printf("iCode=  \"%s\"\n", s_iCode);
+			// printf("x=      \"%s\"\n", s_x);
+			// printf("y=      \"%s\"\n", s_y);
+			// printf("z=      \"%s\"\n", s_z);
 
 			/*
 			 * Convert the numeric fields to integers or doubles.

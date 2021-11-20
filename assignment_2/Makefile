@@ -46,7 +46,7 @@ CXX = gcc
 CFLAGS = -Wall -g -std=c99
 LDFLAGS = -lm
 
-all: pdb_io.exe atom_array.exe residue_array.exe make_distance_map.exe
+all: pdb_io.exe atom_array.exe residue_array.exe make_distance_map.exe domak_partition.exe
 
 pdb_io.exe:	pdb_io.c
 	$(CXX) $(CFLAGS) -o pdb_io.exe pdb_io.c
@@ -59,6 +59,9 @@ residue_array.exe:	residue_array.c
 
 make_distance_map.exe:	make_distance_map.c
 	$(CXX) $(CFLAGS) -o make_distance_map.exe make_distance_map.c $(LDFLAGS)
+
+domak_partition.exe:	domak_partition.c
+	$(CXX) $(CFLAGS) -o domak_partition.exe domak_partition.c $(LDFLAGS)
 
 clean:
 	rm -f *.exe *.o *.ps
