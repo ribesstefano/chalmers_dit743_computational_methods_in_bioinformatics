@@ -8,10 +8,7 @@
 # or
 #	make all
 # or
-#	make pdb_io
-#	make atom_array
-#	make residue_array
-#
+#	make pdb_io.exe #	make atom_array.exe #	make residue_array.exe #
 # To remove those files that can be recompiled from the source code, type:
 #
 #	make clean
@@ -46,20 +43,22 @@
 #
 
 CXX = gcc
-CFLAGS= -Wall -g -std=c99
+CFLAGS = -Wall -g -std=c99
+LDFLAGS = -lm
 
-all:	pdb_io atom_array residue_array
+all: pdb_io.exe atom_array.exe residue_array.exe make_distance_map.exe
 
-pdb_io:	pdb_io.c
-	$(CXX) $(CFLAGS) -o pdb_io pdb_io.c
+pdb_io.exe:	pdb_io.c
+	$(CXX) $(CFLAGS) -o pdb_io.exe pdb_io.c
 
-atom_array:	atom_array.c
-	$(CXX) $(CFLAGS) -o atom_array atom_array.c
+atom_array.exe:	atom_array.c
+	$(CXX) $(CFLAGS) -o atom_array.exe atom_array.c
 
-residue_array:	residue_array.c
-	$(CXX) $(CFLAGS) -o residue_array residue_array.c
+residue_array.exe:	residue_array.c
+	$(CXX) $(CFLAGS) -o residue_array.exe residue_array.c
+
+make_distance_map.exe:	make_distance_map.c
+	$(CXX) $(CFLAGS) -o make_distance_map.exe make_distance_map.c $(LDFLAGS)
 
 clean:
-	rm -f pdb_io
-	rm -f atom_array
-	rm -f residue_array
+	rm -f *.exe *.o *.ps
