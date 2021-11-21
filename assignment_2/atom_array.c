@@ -2,14 +2,16 @@
  * File:  atom_array.c
  * Purpose:  Read PDB atom records into an array of "atom" structures.
  */
-#include "data.h"
+#include "pdb_handler.h"
+#include "atom.h"
+#include "residue.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 void atom_callback(const PdbEntry* entry, int* line_idx, void* user_data) {
-  printf("I'm atom_callback!\n");
+  // printf("I'm atom_callback!\n");
   Atom* atoms = (Atom*)user_data;
   int serial = atoi(entry->s_serial);
   int resSeq = atoi(entry->s_resSeq);

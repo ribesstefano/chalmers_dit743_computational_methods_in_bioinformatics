@@ -2,7 +2,9 @@
  * File:  residue_array.c
  * Purpose:  Read PDB atom records into an array of "residue" structures.
  */
-#include "data.h"
+#include "pdb_handler.h"
+#include "atom.h"
+#include "residue.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,23 +14,12 @@
 
 typedef struct {
   Residue* residues;
-  int j;
   int previousSeq;
   char previousID[2];
   char previousICode[2];
 } user_data_t;
 
-double get_distance(const Point a, const Point b);
-double get_atoms_distance(const Atom a, const Atom b);
-bool get_atom_from_residue(const Residue residue, const char* atom_name, Atom* atom);
 void residue_callback(const PdbEntry* entry, int* line_idx, void* data);
-
-bool is_heavy(Atom a) {
-  if (strcmp(a.atomName, " CA ") == 0) {
-    return true;
-  }
-  return false;
-}
 
 typedef struct {
   int start;
@@ -97,7 +88,7 @@ int get_num_exterior_count(const double dist_threshold, const int num_residues,
 
 int main(int argc, char** argv) {
   if (argc < 2) {
-    (void) fprintf(stderr, "ERROR. Usage: residue_array file.pdb [threshold=7]\n");
+    fprintf(stderr, "ERROR. Usage: residue_array file.pdb [threshold=7]\n");
     exit(1);
   }
   double dist_threshold = 5.0;
@@ -108,7 +99,6 @@ int main(int argc, char** argv) {
   Residue residues[MAX_RESIDUES + 1];
   user_data_t data;
   data.residues = residues;
-  data.j = 0;
   data.previousSeq = 0;
   strcpy(data.previousID, "");
   strcpy(data.previousICode, "");
@@ -162,27 +152,6 @@ int main(int argc, char** argv) {
   return 0;
 }
 
-double get_distance(const Point a, const Point b) {
-  const Point diff = {a.x - b.x, a.y - b.y, a.z - b.z};
-  return sqrt(diff.x * diff.x + diff.y * diff.y + diff.z * diff.z);
-}
-
-double get_atoms_distance(const Atom a, const Atom b) {
-  return get_distance(a.centre, b.centre);
-}
-
-bool get_atom_from_residue(const Residue residue, const char* atom_name, Atom* atom) {
-  bool atom_found = false;
-  for (int i = 1; i <= residue.numAtoms; ++i) {
-    if (strcmp(residue.atom[i].atomName, atom_name) == 0) {
-      *atom = residue.atom[i];
-      atom_found = true;
-      break;
-    }
-  }
-  return atom_found;
-}
-
 void residue_callback(const PdbEntry* entry, int* line_idx, void* data) {
   // printf("I'm residue_callback!\n");
   int i = *line_idx;
@@ -190,22 +159,23 @@ void residue_callback(const PdbEntry* entry, int* line_idx, void* data) {
   Residue* residues = d->residues;
   char* previousID = d->previousID;
   char* previousICode = d->previousICode;
-
+  /*
+   * Copy values to the next element in the array.
+   */
   int serial = atoi(entry->s_serial);
   int resSeq = atoi(entry->s_resSeq);
   double x = atof(entry->s_x);
   double y = atof(entry->s_y);
   double z = atof(entry->s_z);
-  /*
-   * Copy values to the next element in the array.
-   */
-  if (resSeq != d->previousSeq || strcmp(entry->s_chainID, previousID) != 0 ||
-       strcmp(entry->s_iCode, previousICode) != 0) {
+   const bool kNewSequence = resSeq != d->previousSeq;
+  const bool kNewChanID = strcmp(entry->s_chainID, previousID) != 0;
+  const bool kNewICode = strcmp(entry->s_iCode, previousICode) != 0;
+  if (kNewSequence || kNewChanID || kNewICode) {
     if (i > MAX_RESIDUES) {
-      (void) fprintf(stderr, "Too many residues\n");
+      fprintf(stderr, "Too many residues\n");
       exit(0);
     }
-    (*(line_idx))++;
+    ++(*(line_idx));
     ++i;
     d->previousSeq = resSeq;
     strcpy(previousID, entry->s_chainID);
@@ -216,16 +186,21 @@ void residue_callback(const PdbEntry* entry, int* line_idx, void* data) {
     residues[i].resSeq = resSeq;
     strcpy(residues[i].iCode, entry->s_iCode);
   }
-  if (++(residues[i].numAtoms) > MAX_ATOMS_PER_RESIDUE) {
-    (void) fprintf(stderr, "Too many atoms in residues %d\n", i);
-    exit(0);
+  /*
+   * Add "heavy" atoms only.
+   */
+  if (is_heavy_atom(entry->s_name)) {
+    ++(residues[i].numAtoms);
+    if (residues[i].numAtoms > MAX_ATOMS_PER_RESIDUE) {
+      fprintf(stderr, "ERROR. Too many atoms in residues %d. Exiting.\n", i);
+      exit(0);
+    }
+    int j = residues[i].numAtoms;
+    residues[i].atom[j].serial = serial;
+    strcpy(residues[i].atom[j].atomName, entry->s_name);
+    strcpy(residues[i].atom[j].altLoc, entry->s_altLoc);
+    residues[i].atom[j].centre.x = x;
+    residues[i].atom[j].centre.y = y;
+    residues[i].atom[j].centre.z = z;
   }
-  int j = residues[i].numAtoms;
-  residues[i].atom[j].serial = serial;
-  strcpy(residues[i].atom[j].atomName, entry->s_name);
-  strcpy(residues[i].atom[j].altLoc, entry->s_altLoc);
-  residues[i].atom[j].centre.x = x;
-  residues[i].atom[j].centre.y = y;
-  residues[i].atom[j].centre.z = z;
-  d->j = j;
 }

@@ -2,7 +2,9 @@
  * File:  residue_array.c
  * Purpose:  Read PDB atom records into an array of "residue" structures.
  */
-#include "data.h"
+#include "pdb_handler.h"
+#include "atom.h"
+#include "residue.h"
 
 #include <stdio.h>
 #include <stdlib.h>

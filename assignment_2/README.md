@@ -41,21 +41,21 @@ I recommend that you use a new directory for each practical.
 To compile the programs, type:
 
 ```bash
-	make
+make
 ```
 
 To run the programs with data file '1CRN.pdb', type:
 
 ```bash
-	./pdb_io 1CRN.pdb
-	./atom_array 1CRN.pdb
-	./residue_array 1CRN.pdb
+./pdb_io 1CRN.pdb
+./atom_array 1CRN.pdb
+./residue_array 1CRN.pdb
 ```
 
 To remove those files that can be recompiled from the source code, type:
 
 ```bash
-	make clean
+make clean
 ```
 
 ## Improvements
