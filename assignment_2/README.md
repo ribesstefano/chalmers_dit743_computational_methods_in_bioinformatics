@@ -4,7 +4,6 @@
 
 The C programs `pdb_io.c`, `atom_array.c` and `residue_array.c`  demonstrate file handling and input/output.  
 
-
 ## Description
 
 The program `pdb_io` takes the name of a Protein Data Bank (PDB) file as a
@@ -95,3 +94,25 @@ int main(int argc, char **argv) {
 }
 
 ```
+## Questions and Outputs
+
+### Question 1: Distance Map Generation
+
+The code of this question can be found in file `make_distance_map.c`.
+
+
+### Question 2: DOMAK Partition
+
+The code of this question can be found in file `domak_partition.c`.
+The code implements the naïve algorithm for two segments partioning described in *Continuous and discontinuous domains: An algorithm for the automatic generation of reliable protein domain definitions*, by S. Siddiqui and J. Barton, 1995.
+
+The implementation only stores *heavy atoms*, *i.e.* alpha carbon atoms, into an array for the comparisons. In case a residue doesn't contain any of such atoms, the program will terminate and output an error message. This means that we are assuming there's at least one atom per residue to compare with the others.
+
+In order to speedup computation, the atom distances are stored into a lookup table once computed.
+
+Please note that the implementation is not optimized for space, but rather for execution time.
+
+
+### Question 4: Multi Domain Partition
+
+The code of this question can be found in file `multi_domak_partition.c`.

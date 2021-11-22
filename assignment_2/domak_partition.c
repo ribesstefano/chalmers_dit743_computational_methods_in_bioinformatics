@@ -5,6 +5,7 @@
 #include "pdb_handler.h"
 #include "atom.h"
 #include "residue.h"
+#include "segment.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,71 +22,6 @@ typedef struct {
 
 void residue_callback(const PdbEntry* entry, int* line_idx, void* data);
 
-typedef struct {
-  int start;
-  int end;
-  int num_internal_contacts;
-} segment_t;
-
-void set_interior_count(const double dist_threshold, const int num_residues,
-    const Residue* residues, segment_t* segment, double* dist_lookup) {
-  const char* atom_name = " CA ";
-  double dist;
-  Atom a, b;
-  for (int i = segment->start; i <= segment->end; ++i) {
-    if (get_atom_from_residue(residues[i], atom_name, &a)) {
-      for (int j = segment->start; j <= segment->end; ++j) {
-        if (get_atom_from_residue(residues[j], atom_name, &b)) {
-          // Check if the distance is already in the lookup table (distances
-          // cannot be negative). Compute it otherwise (the lookup matrix is
-          // symmetric).
-          if (dist_lookup[i * num_residues + j] > 0) {
-            dist = dist_lookup[i * num_residues + j];
-          } else {
-            dist = get_atoms_distance(a, b);
-            dist_lookup[i * num_residues + j] = dist;
-            dist_lookup[j * num_residues + i] = dist;
-          }
-          if (dist < dist_threshold) {
-            (segment->num_internal_contacts)++;
-          }
-        }
-      }
-    }
-  }
-}
-
-int get_num_exterior_count(const double dist_threshold, const int num_residues,
-    const Residue* residues, const segment_t a, const segment_t b,
-    double* dist_lookup) {
-  const char* atom_name = " CA ";
-  double dist;
-  Atom x, y;
-  int num_exterior_contacts = 0;
-  for (int i = a.start; i <= a.end; ++i) {
-    if (get_atom_from_residue(residues[i], atom_name, &x)) {
-      for (int j = b.start; j <= b.end; ++j) {
-        if (get_atom_from_residue(residues[j], atom_name, &y)) {
-          // Check if the distance is already in the lookup table (distances
-          // cannot be negative). Compute it otherwise (the lookup matrix is
-          // symmetric).
-          if (dist_lookup[i * num_residues + j] > 0) {
-            dist = dist_lookup[i * num_residues + j];
-          } else {
-            dist = get_atoms_distance(x, y);
-            dist_lookup[i * num_residues + j] = dist;
-            dist_lookup[j * num_residues + i] = dist;
-          }
-          if (dist < dist_threshold) {
-            ++num_exterior_contacts;
-          }
-        }
-      }
-    }
-  }
-  return num_exterior_contacts;
-}
-
 int main(int argc, char** argv) {
   if (argc < 2) {
     fprintf(stderr, "ERROR. Usage: residue_array file.pdb [threshold=7]\n");
@@ -95,6 +31,7 @@ int main(int argc, char** argv) {
   if (argc == 3) {
     dist_threshold = atof(argv[2]);
   }
+  const int kMaxNumSegments = 2;
   int num_residues;
   Residue residues[MAX_RESIDUES + 1];
   user_data_t data;
@@ -102,18 +39,21 @@ int main(int argc, char** argv) {
   data.previousSeq = 0;
   strcpy(data.previousID, "");
   strcpy(data.previousICode, "");
-  // TODO: Modify the callback above to only store the "heavy atoms" of the
-  // residues.
   num_residues = read_data(argv[1], &residue_callback, (void*)&data);
+  for (int i = 1; i <= num_residues; ++i) {
+    if (residues[i].numAtoms == 0) {
+      fprintf(stderr, "ERROR. Residue n.%d doesn't contain any heavy atom (CA). Exiting.\n", i);
+      exit(3);   
+    }
+  }
   double* split_values = malloc((num_residues+1) * sizeof(double));
-#define MAX_NUM_SEGMENTS 2
-  int num_exterior_contacts[MAX_NUM_SEGMENTS];
+  int num_exterior_contacts[kMaxNumSegments];
   // NOTE: The lookup table is kept symmetric to exploit data locality as much
   // as possible.
   const int kLookupSize = (num_residues+1) * (num_residues+1);
   double* dist_lookup = malloc(kLookupSize * sizeof(double));
   memset(dist_lookup, -1, kLookupSize * sizeof(double));
-  segment_t segments[MAX_NUM_SEGMENTS];
+  Segment segments[kMaxNumSegments];
   for (int i = 2; i <= num_residues - 1; ++i) {
     segments[0].start = 1;
     segments[0].end = i;
@@ -121,11 +61,13 @@ int main(int argc, char** argv) {
     segments[1].end = num_residues;
     segments[0].num_internal_contacts = 0;
     segments[1].num_internal_contacts = 0;
-    set_interior_count(dist_threshold, num_residues, residues, &segments[0], dist_lookup);
-    set_interior_count(dist_threshold, num_residues, residues, &segments[1], dist_lookup);
-    num_exterior_contacts[0] = get_num_exterior_count(dist_threshold, num_residues, residues,
-      segments[0], segments[1], dist_lookup);
-    split_values[i] = (double)segments[0].num_internal_contacts * (double)segments[1].num_internal_contacts / (double)num_exterior_contacts[0];
+    set_int_cnt_for_atom(dist_threshold, num_residues, residues, " CA ",
+      &segments[0], dist_lookup);
+    set_int_cnt_for_atom(dist_threshold, num_residues, residues, " CA ",
+      &segments[1], dist_lookup);
+    num_exterior_contacts[0] = get_ext_cnt_for_atom(dist_threshold,
+      num_residues, residues, " CA ", segments[0], segments[1], dist_lookup);
+    split_values[i] = (double)segments[0].num_internal_contacts * (double)segments[1].num_internal_contacts / ((double)num_exterior_contacts[0] * (double)num_exterior_contacts[0]);
   }
   int split_idx = 0;
   double max_split = -1;
