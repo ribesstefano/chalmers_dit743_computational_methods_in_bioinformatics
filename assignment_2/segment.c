@@ -127,6 +127,9 @@ int get_ext_cnt(const double dist_threshold, const int num_residues,
 
 double get_split_val(const double dist_threshold, const int num_residues,
     const Residue* residues, Segment* a, Segment* b, double* dist_lookup) {
+  if (len(*a) <= DOMAK_MDS || len(*b) <= DOMAK_MDS) {
+    return 0;
+  }
   set_int_cnt(dist_threshold, num_residues, residues, a, dist_lookup);
   set_int_cnt(dist_threshold, num_residues, residues, b, dist_lookup);
   const double int_a = (double)a->num_internal_contacts;
@@ -142,25 +145,26 @@ void single_segment_scan(const double dist_threshold, const int num_residues,
   Segment a_max, a, b1, b2;
   Segment b = domains[curr_domain_idx].segments[0];
   double max_split_val = 0;
-  for (int i = b.start; i <= b.end-DOMAK_MDS; ++i) {
-    for (int j = i+DOMAK_MDS; j <= b.end; ++j) {
+  // TODO: Change for indeces to account for the DOMAK_MDS constraint.
+  for (int i = b.start; i <= b.end; ++i) {
+    for (int j = i; j <= b.end; ++j) {
       a.start = i;
       a.end = j;
       b1.start = b.start;
       b1.end = i;
       b2.start = j;
       b2.end = b.end;
-      const double split_b1 = get_split_val(dist_threshold, num_residues, residues, &a, &b1, dist_lookup);
-      const double split_b2 = get_split_val(dist_threshold, num_residues, residues, &a, &b2, dist_lookup);
+      const double split_b1 = get_split_val(dist_threshold, num_residues,
+        residues, &a, &b1, dist_lookup);
+      const double split_b2 = get_split_val(dist_threshold, num_residues,
+        residues, &a, &b2, dist_lookup);
       if (split_b1 > max_split_val) {
         max_split_val = split_b1;
-        a_max.start = i;
-        a_max.end = j;
+        a_max = a;
       }
       if (split_b2 > max_split_val) {
         max_split_val = split_b2;
-        a_max.start = i;
-        a_max.end = j;
+        a_max = a;
       }
     }
   }
@@ -173,18 +177,19 @@ void single_segment_scan(const double dist_threshold, const int num_residues,
     domains[*num_domains].num_segments = 1;
     if (a_max.end == b.end) {
       domains[curr_domain_idx].segments[0].end = a_max.start;
-      domains[curr_domain_idx].segments[1] = null_segment; // Reset other segment
+      domains[curr_domain_idx].segments[1] = null_segment;
       domains[curr_domain_idx].num_segments = 1;
     } else if (a_max.start == b.start) {
       domains[curr_domain_idx].segments[0].start = a_max.start;
-      domains[curr_domain_idx].segments[1] = null_segment; // Reset other segment
+      domains[curr_domain_idx].segments[1] = null_segment;
       domains[curr_domain_idx].num_segments = 1;
     } else {
       b1.start = b.start;
       b1.end = a_max.start;
       b2.start = a_max.end;
       b2.end = b.end;
-      const double split_b = get_split_val(dist_threshold, num_residues, residues, &b1, &b2, dist_lookup);
+      const double split_b = get_split_val(dist_threshold, num_residues,
+        residues, &b1, &b2, dist_lookup);
       if (max_split_val > DOMAK_MSV) {
         // B1 and B2 not correlated: generate another domain
         domains[curr_domain_idx].segments[0] = b1;
@@ -216,16 +221,20 @@ void two_segment_scan_of_two_segment_domain(const double dist_threshold,
   a2.start = seg_hi.start;
   b1.start = seg_lo.start;
   b2.end = seg_hi.end;
-  for (int i = seg_lo.start; i <= seg_lo.end-DOMAK_MDS; ++i) {
-    for (int j = seg_hi.start+DOMAK_MDS; j <= seg_hi.end; ++j) {
+  for (int i = seg_lo.start; i <= seg_lo.end; ++i) {
+    for (int j = seg_hi.start; j <= seg_hi.end; ++j) {
       a1.start = i;
       a2.end = j;
       b1.end = i;
       b2.start = j;
-      const double split_a1b1 = get_split_val(dist_threshold, num_residues, residues, &a1, &b1, dist_lookup);
-      const double split_a1b2 = get_split_val(dist_threshold, num_residues, residues, &a1, &b2, dist_lookup);
-      const double split_a2b1 = get_split_val(dist_threshold, num_residues, residues, &a2, &b1, dist_lookup);
-      const double split_a2b2 = get_split_val(dist_threshold, num_residues, residues, &a2, &b2, dist_lookup);
+      const double split_a1b1 = get_split_val(dist_threshold, num_residues,
+        residues, &a1, &b1, dist_lookup);
+      const double split_a1b2 = get_split_val(dist_threshold, num_residues,
+        residues, &a1, &b2, dist_lookup);
+      const double split_a2b1 = get_split_val(dist_threshold, num_residues,
+        residues, &a2, &b1, dist_lookup);
+      const double split_a2b2 = get_split_val(dist_threshold, num_residues,
+        residues, &a2, &b2, dist_lookup);
       if (split_a1b1 > max_split_val) {
         max_split_val = split_a1b1;
       } else if (split_a1b2 > max_split_val) {
@@ -253,14 +262,15 @@ void two_segment_scan_of_two_segment_domain(const double dist_threshold,
     domains[*num_domains].num_segments = 2;
     if (a1_max.start == seg_lo.start) {
       domains[curr_domain_idx].segments[0] = b2_max;
-      domains[curr_domain_idx].segments[1] = null_segment; // Reset other segment
+      domains[curr_domain_idx].segments[1] = null_segment;
       domains[curr_domain_idx].num_segments = 1;
     } else if (a2_max.end == seg_hi.end) {
       domains[curr_domain_idx].segments[0] = b1_max;
-      domains[curr_domain_idx].segments[1] = null_segment; // Reset other segment
+      domains[curr_domain_idx].segments[1] = null_segment;
       domains[curr_domain_idx].num_segments = 1;
     } else {
-      const double split_b = get_split_val(dist_threshold, num_residues, residues, &b1_max, &b2_max, dist_lookup);
+      const double split_b = get_split_val(dist_threshold, num_residues,
+        residues, &b1_max, &b2_max, dist_lookup);
       if (max_split_val > DOMAK_MSV) {
         // B1 and B2 not correlated: generate another domain
         domains[curr_domain_idx].segments[0] = b1_max;

@@ -71,10 +71,16 @@ int main(int argc, char** argv) {
           printf("[DEBUG] Calling single_segment_scan.\n");
           single_segment_scan(dist_threshold, num_residues,
             residues, i, domains, &num_domains, dist_lookup);
+          for (int j = 0; j < domains[i].num_segments; ++j) {
+            printf("\tsegment n.%d: (%d, %d)\n", j+1, domains[i].segments[j].start, domains[i].segments[j].end);
+          }
         } else {
           printf("[DEBUG] Calling two_segment_scan_of_two_segment_domain.\n");
           two_segment_scan_of_two_segment_domain(dist_threshold, num_residues,
             residues, i, domains, &num_domains, dist_lookup);
+          for (int j = 0; j < domains[i].num_segments; ++j) {
+            printf("\tsegment n.%d: (%d, %d)\n", j+1, domains[i].segments[j].start, domains[i].segments[j].end);
+          }
         }
       }
     }

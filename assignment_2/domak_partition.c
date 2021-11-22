@@ -67,7 +67,10 @@ int main(int argc, char** argv) {
       &segments[1], dist_lookup);
     num_exterior_contacts[0] = get_ext_cnt_for_atom(dist_threshold,
       num_residues, residues, " CA ", segments[0], segments[1], dist_lookup);
-    split_values[i] = (double)segments[0].num_internal_contacts * (double)segments[1].num_internal_contacts / ((double)num_exterior_contacts[0] * (double)num_exterior_contacts[0]);
+    const double int_a = (double)segments[0].num_internal_contacts;
+    const double int_b = (double)segments[1].num_internal_contacts;
+    const double ext_ab = (double)num_exterior_contacts[0];
+    split_values[i] = (int_a / ext_ab) * (int_b / ext_ab);
   }
   int split_idx = 0;
   double max_split = -1;
@@ -77,7 +80,8 @@ int main(int argc, char** argv) {
       split_idx = i;
     }
   }
-  printf("[INFO] Maximum split value: %.3f, corresponding to index %d.\n", max_split, split_idx);
+  printf("[INFO] Maximum split value: %.3f, corresponding to index %d.\n",
+    max_split, split_idx);
   printf("[INFO] Bar plot with normalized values:\n");
   for (int i = 2; i <= num_residues - 1; ++i) {
     double norm = split_values[i] / max_split;
