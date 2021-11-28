@@ -1,3 +1,7 @@
+/*
+ * File:  residue.h
+ * Author: Stefano Ribes
+ */
 #ifndef RESIDUE_H_
 #define RESIDUE_H_
 

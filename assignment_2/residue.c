@@ -1,3 +1,7 @@
+/*
+ * File:  residue.c
+ * Author: Stefano Ribes
+ */
 #include "residue.h"
 #include <string.h>
 

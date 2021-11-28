@@ -1,3 +1,7 @@
+/*
+ * File:  pdb_handler.c
+ * Author: Stefano Ribes
+ */
 #include "pdb_handler.h"
 
 int read_data(const char *filename, const callback_ptr callback, void* user_data) {

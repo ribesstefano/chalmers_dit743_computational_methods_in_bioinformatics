@@ -1,3 +1,7 @@
+/*
+ * File:  segment.h
+ * Author: Stefano Ribes
+ */
 #ifndef SEGMENT_H_
 #define SEGMENT_H_
 

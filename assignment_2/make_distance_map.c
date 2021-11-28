@@ -1,6 +1,8 @@
 /*
- * File:  residue_array.c
- * Purpose:  Read PDB atom records into an array of "residue" structures.
+ * File:  make_distance_map.c
+ * Purpose:  Read PDB atom records into an array of "residue" structures and
+ *           generate distance map
+ * Author: Stefano Ribes
  */
 #include "pdb_handler.h"
 #include "atom.h"
@@ -24,21 +26,25 @@ void residue_callback(const PdbEntry* entry, int* line_idx, void* data);
 
 int main(int argc, char** argv) {
   if (argc < 2) {
-    fprintf(stderr, "usage: residue_array file.pdb [threshold=7]\n");
+    fprintf(stderr, "usage: residue_array file.pdb [threshold=7] [print_map=false]\n");
     exit(1);
   }
   double dist_threshold = 7.0;
-  if (argc == 3) {
+  if (argc >= 3) {
     dist_threshold = atof(argv[2]);
   }
-  int num_residues;
+  bool print_map = false;
+  if (argc >= 4) {
+    print_map = (bool)atoi(argv[3]);
+  }
   Residue residues[MAX_RESIDUES + 1];
   user_data_t data;
   data.residues = residues;
   data.previousSeq = 0;
   strcpy(data.previousID, "");
   strcpy(data.previousICode, "");
-  num_residues = read_data(argv[1], &residue_callback, (void*)&data);
+  int num_residues = read_data(argv[1], &residue_callback, (void*)&data);
+  char* map = malloc((num_residues+1) * (num_residues+1));
   for (int i = 1; i <= num_residues; ++i) {
     const Atom a = get_ca_from_residue(residues[i]);
     for (int j = 1; j <= num_residues; ++j) {
@@ -46,9 +52,21 @@ int main(int argc, char** argv) {
       const double distance = get_atoms_distance(a, b);
       if (distance < dist_threshold) {
         printf("%d %d\n", i, j);
+        map[i * (num_residues+1) + j] = '*';
+      } else {
+        map[i * (num_residues+1) + j] = ' ';
       }
     }
   }
+  if (print_map) {
+    for (int i = 1; i <= num_residues; ++i) {
+      for (int j = 1; j <= num_residues; ++j) {
+        printf("%c", map[i * (num_residues+1) + j]);
+      }
+      printf("\n");
+    }
+  }
+  free(map);
   return 0;
 }
 

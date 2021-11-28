@@ -1,6 +1,7 @@
 /*
  * File:  atom_array.c
  * Purpose:  Read PDB atom records into an array of "atom" structures.
+ * Author: Stefano Ribes
  */
 #include "pdb_handler.h"
 #include "atom.h"

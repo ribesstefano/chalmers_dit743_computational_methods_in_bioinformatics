@@ -1,6 +1,7 @@
 /*
  * File:  residue_array.c
  * Purpose:  Read PDB atom records into an array of "residue" structures.
+ * Author: Stefano Ribes
  */
 #include "pdb_handler.h"
 #include "atom.h"
@@ -12,6 +13,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <math.h>
+#include <omp.h>
 
 typedef struct {
   Residue* residues;
@@ -63,33 +65,32 @@ int main(int argc, char** argv) {
   while (num_splitted_domains > 0) {
     printf("[DEBUG] Iteration n.%d.\n", ++iter_cnt);
     num_splitted_domains = 0;
-    for (int i = 0; i < num_domains+1; ++i) {
+    const int curr_num_domains = num_domains+1;
+    for (int i = 0; i < curr_num_domains; ++i) {
       const int total_len = len(domains[i].segments[0]) + len(domains[i].segments[1]);
       if (total_len >= DOMAK_MDSP) {
-        ++num_splitted_domains;
         if (domains[i].num_segments == 1) {
           printf("[DEBUG] Calling single_segment_scan.\n");
           single_segment_scan(dist_threshold, num_residues,
             residues, i, domains, &num_domains, dist_lookup);
-          for (int j = 0; j < domains[i].num_segments; ++j) {
-            printf("\tsegment n.%d: (%d, %d)\n", j+1, domains[i].segments[j].start, domains[i].segments[j].end);
-          }
         } else {
           printf("[DEBUG] Calling two_segment_scan_of_two_segment_domain.\n");
           two_segment_scan_of_two_segment_domain(dist_threshold, num_residues,
             residues, i, domains, &num_domains, dist_lookup);
-          for (int j = 0; j < domains[i].num_segments; ++j) {
-            printf("\tsegment n.%d: (%d, %d)\n", j+1, domains[i].segments[j].start, domains[i].segments[j].end);
-          }
+        }
+        if (num_domains+1 > curr_num_domains) {
+          // If the above methods have extended the domains size, then repeat.
+          ++num_splitted_domains;
         }
       }
     }
   }
-  printf("[INFO] Found %d domains:\n", num_domains+1);
+  printf("[INFO] Found %d domain. Each segment is defined as: (residue start index, residue end index)\n", num_domains+1);
   for (int i = 0; i < num_domains+1; ++i) {
     printf("Domain n.%d\n", i+1);
     for (int j = 0; j < domains[i].num_segments; ++j) {
-      printf("\tsegment n.%d: (%d, %d)\n", j+1, domains[i].segments[j].start, domains[i].segments[j].end);
+      printf("\tsegment n.%d: (%d, %d)\n", j+1, domains[i].segments[j].start,
+        domains[i].segments[j].end);
     }
   }
   free(dist_lookup);

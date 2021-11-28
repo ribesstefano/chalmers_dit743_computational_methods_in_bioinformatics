@@ -1,3 +1,7 @@
+/*
+ * File:  pdb_io.c
+ * Author: Stefano Ribes
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

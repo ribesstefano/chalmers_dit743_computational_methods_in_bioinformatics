@@ -1,3 +1,7 @@
+/*
+ * File:  pdb_handler.h
+ * Author: Stefano Ribes
+ */
 #ifndef PDB_HANDLER_H_
 #define PDB_HANDLER_H_
 

@@ -1,6 +1,8 @@
 /*
- * File:  residue_array.c
- * Purpose:  Read PDB atom records into an array of "residue" structures.
+ * File:  domak_partition.c
+ * Purpose:  Read PDB atom records into an array of "residue" structures and
+ *           generate DOMAK paritioning.
+ * Author: Stefano Ribes
  */
 #include "pdb_handler.h"
 #include "atom.h"

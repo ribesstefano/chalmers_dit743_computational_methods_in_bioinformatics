@@ -1,3 +1,7 @@
+/*
+ * File:  atom.c
+ * Author: Stefano Ribes
+ */
 #include "atom.h"
 #include <stdio.h>
 #include <string.h>

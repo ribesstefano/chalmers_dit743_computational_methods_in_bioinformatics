@@ -1,4 +1,10 @@
+/*
+ * File:  segment.c
+ * Author: Stefano Ribes
+ */
 #include "segment.h"
+
+#include <omp.h>
 
 int len(const Segment s) {
   return s.end - s.start;
@@ -16,12 +22,12 @@ void set_int_cnt_for_atom(const double dist_threshold, const int num_residues,
           // Check if the distance is already in the lookup table (distances
           // cannot be negative). Otherwise, compute it (the lookup matrix is
           // symmetric).
-          if (dist_lookup[i * num_residues + j] > 0) {
-            dist = dist_lookup[i * num_residues + j];
+          if (dist_lookup[i * (num_residues+1) + j] > 0) {
+            dist = dist_lookup[i * (num_residues+1) + j];
           } else {
             dist = get_atoms_distance(a, b);
-            dist_lookup[i * num_residues + j] = dist;
-            dist_lookup[j * num_residues + i] = dist;
+            dist_lookup[i * (num_residues+1) + j] = dist;
+            dist_lookup[j * (num_residues+1) + i] = dist;
           }
           if (dist < dist_threshold) {
             (segment->num_internal_contacts)++;
@@ -45,23 +51,32 @@ void set_int_cnt_for_atom(const double dist_threshold, const int num_residues,
 void set_int_cnt(const double dist_threshold, const int num_residues,
     const Residue* residues, Segment* segment, double* dist_lookup) {
   double dist;
-  Atom a, b;
-  for (int i = segment->start; i <= segment->end; ++i) {
-    a = residues[i].atom[0];
-    for (int j = segment->start; j <= segment->end; ++j) {
-      b = residues[j].atom[0];
-      // Check if the distance is already in the lookup table (distances
-      // cannot be negative). Otherwise, compute it (the lookup matrix is
-      // symmetric).
-      if (dist_lookup[i * num_residues + j] > 0) {
-        dist = dist_lookup[i * num_residues + j];
-      } else {
+  // #pragma omp parallel shared(residues, dist_lookup)
+  {
+    for (int i = segment->start; i <= segment->end; ++i) {
+      const Atom a = residues[i].atom[0];
+      for (int j = segment->start; j <= segment->end; ++j) {
+        const Atom b = residues[j].atom[0];
+        // Check if the distance is already in the lookup table (distances
+        // cannot be negative). Otherwise, compute it (the lookup matrix is
+        // symmetric).
+#ifdef NO_LOOKUP_TABLE
         dist = get_atoms_distance(a, b);
-        dist_lookup[i * num_residues + j] = dist;
-        dist_lookup[j * num_residues + i] = dist;
-      }
-      if (dist < dist_threshold) {
-        (segment->num_internal_contacts)++;
+#else
+        if (dist_lookup[i * (num_residues+1) + j] > 0) {
+          dist = dist_lookup[i * (num_residues+1) + j];
+        } else {
+          dist = get_atoms_distance(a, b);
+          #pragma omp critical
+          {
+            dist_lookup[i * (num_residues+1) + j] = dist;
+            dist_lookup[j * (num_residues+1) + i] = dist;
+          }
+        }
+#endif
+        if (dist < dist_threshold) {
+          (segment->num_internal_contacts)++;
+        }
       }
     }
   }
@@ -80,12 +95,12 @@ int get_ext_cnt_for_atom(const double dist_threshold, const int num_residues,
           // Check if the distance is already in the lookup table (distances
           // cannot be negative). Otherwise, compute it (the lookup matrix is
           // symmetric).
-          if (dist_lookup[i * num_residues + j] > 0) {
-            dist = dist_lookup[i * num_residues + j];
+          if (dist_lookup[i * (num_residues+1) + j] > 0) {
+            dist = dist_lookup[i * (num_residues+1) + j];
           } else {
             dist = get_atoms_distance(x, y);
-            dist_lookup[i * num_residues + j] = dist;
-            dist_lookup[j * num_residues + i] = dist;
+            dist_lookup[i * (num_residues+1) + j] = dist;
+            dist_lookup[j * (num_residues+1) + i] = dist;
           }
           if (dist < dist_threshold) {
             ++num_exterior_contacts;
@@ -101,24 +116,33 @@ int get_ext_cnt(const double dist_threshold, const int num_residues,
     const Residue* residues, const Segment a, const Segment b,
     double* dist_lookup) {
   double dist;
-  Atom x, y;
   int num_exterior_contacts = 0;
-  for (int i = a.start; i <= a.end; ++i) {
-    x = residues[i].atom[0];
-    for (int j = b.start; j <= b.end; ++j) {
-      y = residues[j].atom[0];
-      // Check if the distance is already in the lookup table (distances
-      // cannot be negative). Otherwise, compute it (the lookup matrix is
-      // symmetric).
-      if (dist_lookup[i * num_residues + j] > 0) {
-        dist = dist_lookup[i * num_residues + j];
-      } else {
+  // #pragma omp parallel shared(residues, dist_lookup)
+  {
+    for (int i = a.start; i <= a.end; ++i) {
+      const Atom x = residues[i].atom[0];
+      for (int j = b.start; j <= b.end; ++j) {
+        const Atom y = residues[j].atom[0];
+        // Check if the distance is already in the lookup table (distances
+        // cannot be negative). Otherwise, compute it (the lookup matrix is
+        // symmetric).
+#ifdef NO_LOOKUP_TABLE
         dist = get_atoms_distance(x, y);
-        dist_lookup[i * num_residues + j] = dist;
-        dist_lookup[j * num_residues + i] = dist;
-      }
-      if (dist < dist_threshold) {
-        ++num_exterior_contacts;
+#else
+        if (dist_lookup[i * (num_residues+1) + j] > 0) {
+          dist = dist_lookup[i * (num_residues+1) + j];
+        } else {
+          dist = get_atoms_distance(x, y);
+          #pragma omp critical
+          {
+            dist_lookup[i * (num_residues+1) + j] = dist;
+            dist_lookup[j * (num_residues+1) + i] = dist;
+          }
+        }
+#endif
+        if (dist < dist_threshold) {
+          ++num_exterior_contacts;
+        }
       }
     }
   }
@@ -130,79 +154,103 @@ double get_split_val(const double dist_threshold, const int num_residues,
   if (len(*a) <= DOMAK_MDS || len(*b) <= DOMAK_MDS) {
     return 0;
   }
-  set_int_cnt(dist_threshold, num_residues, residues, a, dist_lookup);
-  set_int_cnt(dist_threshold, num_residues, residues, b, dist_lookup);
-  const double int_a = (double)a->num_internal_contacts;
-  const double int_b = (double)b->num_internal_contacts;
-  const double ext_ab = (double)get_ext_cnt(dist_threshold, num_residues,
-    residues, *a, *b, dist_lookup);
+  double int_a;
+  double int_b;
+  double ext_ab;
+  // #pragma omp parallel shared(dist_lookup)
+  {
+    set_int_cnt(dist_threshold, num_residues, residues, a, dist_lookup);
+    set_int_cnt(dist_threshold, num_residues, residues, b, dist_lookup);
+    int_a = (double)a->num_internal_contacts;
+    int_b = (double)b->num_internal_contacts;
+    ext_ab = (double)get_ext_cnt(dist_threshold, num_residues,
+      residues, *a, *b, dist_lookup);
+  }
   return (int_a / ext_ab) * (int_b / ext_ab);
 }
 
 void single_segment_scan(const double dist_threshold, const int num_residues,
     const Residue* residues, const int curr_domain_idx, Domain* domains,
     int* num_domains, double* dist_lookup) {
-  Segment a_max, a, b1, b2;
-  Segment b = domains[curr_domain_idx].segments[0];
+  Segment a_max;
+  const Segment b = domains[curr_domain_idx].segments[0];
   double max_split_val = 0;
   // TODO: Change for indeces to account for the DOMAK_MDS constraint.
-  for (int i = b.start; i <= b.end; ++i) {
-    for (int j = i; j <= b.end; ++j) {
-      a.start = i;
-      a.end = j;
-      b1.start = b.start;
-      b1.end = i;
-      b2.start = j;
-      b2.end = b.end;
-      const double split_b1 = get_split_val(dist_threshold, num_residues,
-        residues, &a, &b1, dist_lookup);
-      const double split_b2 = get_split_val(dist_threshold, num_residues,
-        residues, &a, &b2, dist_lookup);
-      if (split_b1 > max_split_val) {
-        max_split_val = split_b1;
-        a_max = a;
-      }
-      if (split_b2 > max_split_val) {
-        max_split_val = split_b2;
-        a_max = a;
+  #pragma omp parallel shared(a_max, max_split_val)
+  {
+    #pragma omp for
+    for (int i = b.start; i <= b.end; ++i) {
+      for (int j = i; j <= b.end; ++j) {
+        // printf("Working on segment (%d, %d)\n", i, j);
+        Segment a, b1, b2;
+        a.start = i;
+        a.end = j;
+        b1.start = b.start;
+        b1.end = i;
+        b2.start = j;
+        b2.end = b.end;
+        const double split_b1 = get_split_val(dist_threshold, num_residues,
+          residues, &a, &b1, dist_lookup);
+        const double split_b2 = get_split_val(dist_threshold, num_residues,
+          residues, &a, &b2, dist_lookup);
+        if (split_b1 > max_split_val) {
+          #pragma omp critical
+          {
+            max_split_val = split_b1;
+            a_max = a;
+          }
+        }
+        if (split_b2 > max_split_val) {
+          #pragma omp critical
+          {
+            max_split_val = split_b2;
+            a_max = a;
+          }
+        }
       }
     }
   }
-  if (max_split_val > DOMAK_MSV) {
-    // A_max and B_max not correlated: extract A as a new domain and update the
-    // current domain (eventually with B1 and B2).
-    ++(*num_domains);
-    domains[*num_domains].segments[0] = a_max;
-    domains[*num_domains].segments[1] = null_segment;
-    domains[*num_domains].num_segments = 1;
-    if (a_max.end == b.end) {
-      domains[curr_domain_idx].segments[0].end = a_max.start;
-      domains[curr_domain_idx].segments[1] = null_segment;
-      domains[curr_domain_idx].num_segments = 1;
-    } else if (a_max.start == b.start) {
-      domains[curr_domain_idx].segments[0].start = a_max.start;
-      domains[curr_domain_idx].segments[1] = null_segment;
-      domains[curr_domain_idx].num_segments = 1;
-    } else {
-      b1.start = b.start;
-      b1.end = a_max.start;
-      b2.start = a_max.end;
-      b2.end = b.end;
-      const double split_b = get_split_val(dist_threshold, num_residues,
-        residues, &b1, &b2, dist_lookup);
-      if (max_split_val > DOMAK_MSV) {
-        // B1 and B2 not correlated: generate another domain
-        domains[curr_domain_idx].segments[0] = b1;
+  #pragma omp critical
+  {
+    if (max_split_val >= DOMAK_MSV) {
+      // A_max and B_max not correlated: extract A as a new domain and update the
+      // current domain (eventually with B1 and B2).
+      ++(*num_domains);
+      domains[*num_domains].segments[0] = a_max;
+      domains[*num_domains].segments[1] = null_segment;
+      domains[*num_domains].num_segments = 1;
+      if (a_max.end == b.end) { // A coincides with the right-most side
+        domains[curr_domain_idx].segments[0].start = b.start;
+        domains[curr_domain_idx].segments[0].end = a_max.start;
         domains[curr_domain_idx].segments[1] = null_segment;
         domains[curr_domain_idx].num_segments = 1;
-        ++(*num_domains);
-        domains[*num_domains].segments[0] = b2;
-        domains[*num_domains].segments[1] = null_segment;
-        domains[*num_domains].num_segments = 1;
+      } else if (a_max.start == b.start) { // A coincides with the left-most side
+        domains[curr_domain_idx].segments[0].start = a_max.start;
+        domains[curr_domain_idx].segments[0].end = b.end;
+        domains[curr_domain_idx].segments[1] = null_segment;
+        domains[curr_domain_idx].num_segments = 1;
       } else {
-        domains[curr_domain_idx].segments[0] = b1;
-        domains[curr_domain_idx].segments[1] = b2;
-        domains[curr_domain_idx].num_segments = 2;
+        Segment b1, b2;
+        b1.start = b.start;
+        b1.end = a_max.start;
+        b2.start = a_max.end;
+        b2.end = b.end;
+        const double split_b = get_split_val(dist_threshold, num_residues,
+          residues, &b1, &b2, dist_lookup);
+        if (max_split_val > DOMAK_MSV) {
+          // B1 and B2 not correlated: generate another domain
+          domains[curr_domain_idx].segments[0] = b1;
+          domains[curr_domain_idx].segments[1] = null_segment;
+          domains[curr_domain_idx].num_segments = 1;
+          ++(*num_domains);
+          domains[*num_domains].segments[0] = b2;
+          domains[*num_domains].segments[1] = null_segment;
+          domains[*num_domains].num_segments = 1;
+        } else {
+          domains[curr_domain_idx].segments[0] = b1;
+          domains[curr_domain_idx].segments[1] = b2;
+          domains[curr_domain_idx].num_segments = 2;
+        }
       }
     }
   }
@@ -253,7 +301,7 @@ void two_segment_scan_of_two_segment_domain(const double dist_threshold,
       }
     }
   }
-  if (max_split_val > DOMAK_MSV) {
+  if (max_split_val >= DOMAK_MSV) {
     // A_max and B_max not correlated: extract A as a new two-segment domain and
     // update the current domain (eventually with B1 and B2).
     ++(*num_domains);
