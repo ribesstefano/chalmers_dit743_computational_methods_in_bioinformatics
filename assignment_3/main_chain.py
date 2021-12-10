@@ -1,3 +1,5 @@
+# Author: Stefano Ribes
+
 import argparse
 import math
 from itertools import combinations, tee, groupby
