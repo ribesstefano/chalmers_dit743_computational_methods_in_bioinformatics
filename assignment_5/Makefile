@@ -17,7 +17,7 @@ COBJS = $(CSRC:.c=.o)
 
 detect_steric_clashes.exe: $(SRC) $(COBJS)
 	$(CXX) $(CXXFLAGS) $(DEFINES) -I. -o detect_steric_clashes.exe $(SRC) $(COBJS) $(LDFLAGS)
-	./detect_steric_clashes.exe 1cdh.pdb 2csn.pdb
+	# ./detect_steric_clashes.exe 1cdh.pdb 2csn.pdb
 
 clean:
 	rm -f *.exe *.o *.ps

@@ -11,38 +11,55 @@ extern "C" {
 #include <cstring>
 #include <vector>
 #include <unordered_map>
+#include <map>
 #include <stdio.h>
 #include <cmath>
 #include <tuple>
 #include <utility>
 #include <sstream>
 
-std::string PrintPoint(const Point a) {
-  std::stringstream str;
-  str << "(" << a.x << ", " << a.y << ", " << a.z << ")";
-  return str.str();
-}
-
+/**
+ * @brief      This struct wraps an hash function for Point coordinates class.
+ */
 struct PointHashFunc {
-    size_t operator() (const Point &k) const {
+  size_t operator() (const Point &k) const {
     size_t h1 = std::hash<double>()(k.x);
     size_t h2 = std::hash<double>()(k.y);
     size_t h3 = std::hash<double>()(k.z);
     return (h1 ^ (h2 << 1)) ^ h3;
-    }
+  }
 };
 
+/**
+ * @brief      This struct wraps a function for determining if two Point objects
+ *             are equal. Used in hash table for having a Point class as key
+ *             type.
+ */
 struct PointEqualsFunc {
   bool operator() (const Point& lhs, const Point& rhs) const {
     return (lhs.x == rhs.x) && (lhs.y == rhs.y) && (lhs.z == rhs.z);
   }
 };
 
+/**
+ * @brief      This class describes a protein.
+ */
 class Protein {
 public:
+  typedef std::unordered_map<Point, std::vector<Atom>, PointHashFunc,
+    PointEqualsFunc> HashTableType;
   static const int kAtomRadius = 2;
 
-  static void atom_callback(const PdbEntry* entry, int* line_idx, void* user_data) {
+  /**
+   * @brief      Callback function to pass to read_data(), which is used for
+   *             reading PDB files. Populate a vector of atoms.
+   *
+   * @param[in]  entry      The read PDB entry
+   * @param      line_idx   The line index of the PDB file
+   * @param      user_data  The user data
+   */
+  static void atom_callback(const PdbEntry* entry, int* line_idx,
+      void* user_data) {
     std::vector<Atom>* atoms = static_cast<std::vector<Atom>*>(user_data);
     // Convert the numeric fields to integers or doubles.
     Atom a;
@@ -60,41 +77,59 @@ public:
     (*line_idx)++; // Advance to the next line in the PDB file.
   }
 
+  /**
+   * @brief      Gets the cube coordinates of an Atom, scaled by the minimum
+   *             dimensions of a given Protein.
+   *
+   * @param[in]  a     The input atom
+   * @param[in]  min   The minimum coordinates to scale to
+   *
+   * @return     The cube coordinate as a Point class.
+   */
   static Point GetCubeCoord(const Atom& a, const Point& min) {
-    const double kCubeSize = Protein::kAtomRadius * 2;
+    // Use the minimum coordinates of the given protein as a sort of origin to
+    // scale the atom original coordinates. Then divide by the cube size (i.e.
+    // the sphere diameter). Finally round up if positive coordinates, round
+    // down otherwise.
+    const double kCubeSize = double(Protein::kAtomRadius * 2);
     Point cube;
-    cube.x = (a.centre.x - min.x) / kCubeSize;
-    cube.y = (a.centre.y - min.y) / kCubeSize;
-    cube.z = (a.centre.z - min.z) / kCubeSize;
+    // NOTE: Add one to avoid mapping wrong atoms to the same cube index, i.e.
+    // avoind rounding errors.
+    cube.x = (a.centre.x - min.x) / kCubeSize + 1;
+    cube.y = (a.centre.y - min.y) / kCubeSize + 1;
+    cube.z = (a.centre.z - min.z) / kCubeSize + 1;
     cube.x = (cube.x > 0) ? std::ceil(cube.x) : std::floor(cube.x);
     cube.y = (cube.y > 0) ? std::ceil(cube.y) : std::floor(cube.y);
     cube.z = (cube.z > 0) ? std::ceil(cube.z) : std::floor(cube.z);
     return cube;
   }
 
-  static void DetectStericOverlaps(Protein& a_protein, Protein& b_protein, bool use_hash) {
-    const int kNumDims = 3;
+  /**
+   * @brief      Detect and print out number of steric overlaps and number of
+   *             atom-atom comparisons.
+   *
+   * @param      a_protein  The A protein
+   * @param      b_protein  The B protein
+   * @param[in]  use_hash   Whether to use an hash table. Brute force otherwise
+   */
+  static void DetectStericOverlaps(Protein& a_protein, Protein& b_protein,
+      bool use_hash) {
     const double kCubeSize = Protein::kAtomRadius * 2;
-    // a.MapAtomsToCubes(b);
-    // a.ResetComparisonCnt();
-    // b.ResetComparisonCnt();
-    // auto a_hashtable = a.get_hash_table();
-    Point min_coords = b_protein.get_min_coods();
-    // Use protein B dimensions to label the cubes in the hash tables.
-    b_protein.MapAtomsToCubes(min_coords);
-    auto hashmap = b_protein.get_hash_table();
-    std::vector<std::pair<Atom, Atom> > clashing_atoms;
-    std::unordered_map<int, Atom> clashes;
+    std::map<int, Atom> clashes;
     int num_clashes = 0;
     int num_comparisons = 0;
     if (use_hash) {
-      // Loop over all atoms in Protein A.
       const auto a_atoms = a_protein.get_atoms();
+      Point min_coords = b_protein.get_min_coods();
+      // Use protein B min dimensions to store the cubes in the hash tables.
+      b_protein.MapAtomsToCubes(min_coords);
+      auto hashmap = b_protein.get_hash_table();
+      // Loop over all atoms in Protein A.
       for (auto a = a_atoms.begin(); a != a_atoms.end(); ++a) {
         // Get the coordinates of the cube containing atom A.
         auto atom_coords = Protein::GetCubeCoord(*a, min_coords);
-        // Check all cubes around the cube containing atom A.
-        // std::cout << PrintPoint(atom_coords) << ":" << std::endl;
+        // Check all cubes around the cube containing atom A and the cube
+        // itself. Check in the range -1 to 1 for each of the thee dimensions.
         for (int i = -1; i < 2; ++i) {
           for (int j = -1; j < 2; ++j) {
             for (int k = -1; k < 2; ++k) {
@@ -103,8 +138,9 @@ public:
                 atom_coords.y + j,
                 atom_coords.z + k
               };
-              // std::cout << "\t" << PrintPoint(coords) << std::endl;
               if (hashmap.find(coords) == hashmap.end()) {
+                // Cube coordinates of neighbouring atom of Protein A are not in
+                // the hashmap of Protein B. Continue.
                 continue;
               } else {
                 const auto b_atoms = hashmap[coords];
@@ -112,8 +148,7 @@ public:
                   ++num_comparisons;
                   if (get_atoms_distance(*a, *b) < kCubeSize) {
                     ++num_clashes;
-                    clashing_atoms.push_back(std::make_pair(*a, *b));
-                    clashes[a->serial] = *a;
+                    clashes[b->serial] = *b;
                   }
                 }
               }
@@ -129,28 +164,28 @@ public:
           ++num_comparisons;
           if (get_atoms_distance(*a, *b) < kCubeSize) {
             ++num_clashes;
-            clashing_atoms.push_back(std::make_pair(*a, *b));
-            clashes[a->serial] = *a;
+            clashes[b->serial] = *b;
           }
         }
       }
     }
-    for (auto i = clashing_atoms.begin(); i != clashing_atoms.end(); ++i) {
-      const auto atom_a = i->first;
-      const auto atom_b = i->second;
-      // std::cout << atom_a.serial << " " << atom_a.resName << "\t"
-      //           << atom_b.serial << " " << atom_b.resName
-      //           << std::endl;
-      // std::cout << atom_a.serial << " " << atom_a.resName << " "
-      //           << atom_a.resSeq << " " << atom_a.atomName
-      //           << std::endl;
+    for (auto i = clashes.begin(); i != clashes.end(); ++i) {
+      const auto atom = i->second;
+      std::cout << atom.serial << " " << atom.resName << " "
+                << atom.resSeq << " " << atom.atomName
+                << std::endl;
     }
-    // std::cout << "[INFO] Number of clashing atoms:   " << num_clashes << std::endl;
-    std::cout << "[INFO] Number of clashing atoms:   " << clashes.size() << std::endl;
+    std::cout << "[INFO] Number of clashing atoms:   " << clashes.size()
+              << std::endl;
     std::cout << "[INFO] Number of comparisons made: " << num_comparisons
               << std::endl;
   }
 
+  /**
+   * @brief      Constructs a new instance.
+   *
+   * @param[in]  pdb_file  The pdb file
+   */
   Protein(const char* pdb_file) {
     this->max_coords_ = {-1e308, -1e308, -1e308};
     this->min_coords_ = {1e308, 1e308, 1e308};
@@ -160,58 +195,33 @@ public:
       this->UpdateMaxCoordinates(a->centre);
       this->UpdateMinCoordinates(a->centre);
     }
-    this->comparisons_cnt_ = 0;
   }
 
   ~Protein() {}
 
+  /**
+   * @brief      For each atom in the protein, get the coordinates of its
+   *             surrounding cube. Then store all atoms into the hash table
+   *             using the coordinates as keys.
+   *
+   * @param[in]  min_coords  The minimum coordinates of a given Protein
+   */
   void MapAtomsToCubes(const Point& min_coords) {
-    // // TODO: Don't I actually need the min of the maxima and the max of the minima??
-    // // Afterall, I can skip the parts where the two proteins do not overlap at
-    // // all...
-    // const double max_x = other.max_coords_.x; // std::min(this->max_coords_.x, other.max_coords_.x);
-    // const double max_y = other.max_coords_.y; // std::min(this->max_coords_.y, other.max_coords_.y);
-    // const double max_z = other.max_coords_.z; // std::min(this->max_coords_.z, other.max_coords_.z);
-    // const double min_x = other.min_coords_.x; // std::max(this->min_coords_.x, other.min_coords_.x);
-    // const double min_y = other.min_coords_.y; // std::max(this->min_coords_.y, other.min_coords_.y);
-    // const double min_z = other.min_coords_.z; // std::max(this->min_coords_.z, other.min_coords_.z);
-    // const double kCubeSize = Protein::kAtomRadius * 2;
-    // this->num_cubes_.x = std::ceil((max_x - min_x) / kCubeSize);
-    // this->num_cubes_.y = std::ceil((max_y - min_y) / kCubeSize);
-    // this->num_cubes_.z = std::ceil((max_z - min_z) / kCubeSize);
-    // // NOTE: Having multiple atoms within a cube with a protein is fine (the
-    // // clashes arise when we compare ANOTHER protein).
+    // For each atom in the protein, get the coordinates of its surrounding
+    // cube. Then store all atoms into the hash table using the coordinates as
+    // keys.
     for (auto a = this->atoms_.begin(); a != this->atoms_.end(); ++a) {
-      Point cube_coord = Protein::GetCubeCoord(*a, min_coords);
-
-      // Point cube_coord;
-      // cube_coord.x = (a->centre.x - min_x) / kCubeSize;
-      // cube_coord.y = (a->centre.y - min_y) / kCubeSize;
-      // cube_coord.z = (a->centre.z - min_z) / kCubeSize;
-      // cube_coord.x = (cube_coord.x > 0) ? std::ceil(cube_coord.x) : std::floor(cube_coord.x);
-      // cube_coord.y = (cube_coord.y > 0) ? std::ceil(cube_coord.y) : std::floor(cube_coord.y);
-      // cube_coord.z = (cube_coord.z > 0) ? std::ceil(cube_coord.z) : std::floor(cube_coord.z);
-      // std::cout << "(" << a->centre.x << ", " << a->centre.y << ", " << a->centre.z << ") -> ("
-      //           << cube_coord.x << ", " << cube_coord.y << ", " << cube_coord.z << ")"
-      //           << std::endl;
-      // int id = cube_coord.z * num_cubes_y * num_cubes_x + cube_coord.y * num_cubes_x + cube_coord.x;
-      // if (this->ht_.find(id) != this->ht_.end()) {
-      //   std::cout << "ERROR. Atom already in HT!" << std::endl;
-      // }
-      // this->ht_[id] = *a;
-
-      // if (this->hash_table_.find(cube_coord) != this->hash_table_.end()) {
-      //   std::cout << "ERROR. Atom already in hash table!" << std::endl;
-      //   std::cout << "(" << cube_coord.x << ", " << cube_coord.y << ", " << cube_coord.z << ") "
-      //             << "(" << a->centre.x << ", " << a->centre.y << ", " << a->centre.z << ")"
-      //             << "(" << this->hash_table_[cube_coord].centre.x << ", " << this->hash_table_[cube_coord].centre.y << ", " << this->hash_table_[cube_coord].centre.z << ")"
-      //             << std::endl;
-      // }
-      this->hash_table_[cube_coord] = *a;
-      this->ht_[cube_coord].push_back(*a);
+      const Point cube_coord = Protein::GetCubeCoord(*a, min_coords);
+      this->hash_table_[cube_coord].push_back(*a);
     }
   }
 
+  /**
+   * @brief      Given a Point, update the Point member keeping track of the
+   *             maximum coordinates of the Protein.
+   *
+   * @param[in]  p     The centre coordinates of an Atom
+   */
   void UpdateMaxCoordinates(const Point p) {
     if (p.x > this->max_coords_.x) {
       this->max_coords_.x = p.x;
@@ -224,6 +234,12 @@ public:
     }
   }
 
+  /**
+   * @brief      Given a Point, update the Point member keeping track of the
+   *             minimum coordinates of the Protein.
+   *
+   * @param[in]  p     The centre coordinates of an Atom
+   */
   void UpdateMinCoordinates(const Point p) {
     if (p.x < this->min_coords_.x) {
       this->min_coords_.x = p.x;
@@ -236,32 +252,9 @@ public:
     }
   }
 
-  bool IsAtomClashing(const Point& atom_centre, const Point& min, const Point& max) {
-    const double kCubeSize = Protein::kAtomRadius * 2;
-    this->comparisons_cnt_++;
-    // // Check if atom from protein A is within min-max of protein B.
-    // Point tmp = {
-    //   (1 + max.x - min.x) * kCubeSize,
-    //   (1 + max.y - min.y) * kCubeSize,
-    //   (1 + max.z - min.z) * kCubeSize
-    // };
-    // if (atom_centre.x < min.x || atom_centre.y < min.y || atom_centre.z < min.z) {
-    //   return false;
-    // }
-    // if (atom_centre.x > tmp.x || atom_centre.y > tmp.y || atom_centre.z > tmp.z) {
-    //   return false;
-    // }
-    if (this->hash_table_.find(atom_centre) != this->hash_table_.end()) {
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  Atom GetAtomFromHTable(const Point& coords) {
-    return this->hash_table_[coords];
-  }
-
+  /**
+   * @brief      Prints all atoms in the protein.
+   */
   void PrintAtoms() {
     for (auto a = this->atoms_.begin(); a != this->atoms_.end(); ++a) {
       print_pdb_atom(a->serial, a->atomName, a->altLoc, a->resName, a->chainID,
@@ -269,19 +262,8 @@ public:
     }
   }
 
-  void ResetComparisonCnt() {
-    this->comparisons_cnt_ = 0;
-  }
-
-  // std::unordered_map<Point, Atom, PointHashFunc, PointEqualsFunc> get_hash_table() {
-  //   return this->hash_table_;
-  // }
-  std::unordered_map<Point, std::vector<Atom>, PointHashFunc, PointEqualsFunc> get_hash_table() {
-    return this->ht_;
-  }
-
-  int get_comparisons_cnt() {
-    return this->comparisons_cnt_;
+  HashTableType get_hash_table() {
+    return this->hash_table_;
   }
 
   Point get_min_coods() {
@@ -300,28 +282,21 @@ private:
   std::vector<Atom> atoms_;
   Point max_coords_;
   Point min_coords_;
-  std::unordered_map<Point, Atom, PointHashFunc, PointEqualsFunc> hash_table_;
-  std::unordered_map<Point, std::vector<Atom>, PointHashFunc, PointEqualsFunc> ht_;
-  Point num_cubes_;
-  int comparisons_cnt_;
+  HashTableType hash_table_;
 };
 
 
 int main(int argc, char const *argv[]) {
   if (argc < 3) {
-    fprintf(stderr, "ERROR. Usage: detect_steric_clashes.exe file1.pdb file2.pdb\n");
+    fprintf(stderr, "ERROR. Usage: detect_steric_clashes.exe file1.pdb file2.pdb [use_bruteforce]\n");
     exit(1);
+  }
+  bool use_hash = true;
+  if (argc >= 4) {
+    use_hash = false;
   }
   Protein a = Protein(argv[1]);
   Protein b = Protein(argv[2]);
-  Protein::DetectStericOverlaps(a, b, true);
-  Protein::DetectStericOverlaps(b, a, true);
-  Protein::DetectStericOverlaps(a, b, false);
-  Protein::DetectStericOverlaps(b, a, false);
-
-  // a.MapAtomsToCubes(b);
-  // b.MapAtomsToCubes(a);
-  // a.PrintAtoms();
-  // b.PrintAtoms();
+  Protein::DetectStericOverlaps(a, b, use_hash);
   return 0;
 }
